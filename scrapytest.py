@@ -1,24 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Aug  1 14:02:35 2017
-Paste this:
-CIK_code =  '0001166126'    
-data = {'CIK': CIK_code}
-fr = scrapy.FormRequest.from_response(response, formid='fast-search', formdata = data)
-fetch(fr)
-table_loc = '/html/body/div[4]/div[4]/table'
-relative_link = response.xpath(table_loc + '/tr[' + str(2) + ']/td[2]/a/@href').extract_first()
-absolute_link = 'https://www.sec.gov' + str(relative_link)
-fetch(absolute_link)
+Web scraper built using the Scrapy framework
+@author: stephen schneider
 
-table_loc2 = '/html/body/div[4]/div[2]/div[1]/table'
-doc_count = len(response.xpath(table_loc2 +'/tr').extract())
-doc_space = str(response.xpath(table_loc2 + '/tr[' + str(2) + ']/td[3]/a/@href').extract_first())
-
-table_loc = '/html/body/div[4]/div[4]/table'  # location of table in new link
-
-
-@author: stephen
 """
 import os
 import scrapy
@@ -94,20 +78,8 @@ class SecSpider(scrapy.Spider):
         print time.time()
             
             
-        #time.sleep(2)  sleep per document click
-    
-        
-'''
-            
- yield{
-        'doc_count' : len(response.xpath('/html/body/div[4]/div[4]/table/tr'))
-        return response.xpath('//title/text()').extract()
-        }
-        #when theres no return
-        def to_text(self, response):
-        title = response.xpath('//title/text()').extract()
-        self.logger.info("Visited %s", response.url)
-'''        
+  
+
         
 process = CrawlerProcess()
 process.crawl(SecSpider)
