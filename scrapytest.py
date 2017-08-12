@@ -87,8 +87,12 @@ class SecSpider(scrapy.Spider):
                 request = scrapy.Request(final_absolute_link, callback = self.to_text)
                 request.meta['total_description'] = final_info               
                 yield request
-            
-            
+    '''
+    Function 'to_text' is still in progress, we are in the process of extracting the text from the final 
+    documents and comparing them with the strings ' ETN ' and ' Exchange Traded ' to classify documents as 
+    ETN related. We must search through the txt or html files line by line... can extract them with response.xpath('/html')
+    '''
+    
     def to_text(self, response):
         #sec_file = open("newfile.txt","w+")
         #make string object with all document labels..named by date and filing.
@@ -97,7 +101,7 @@ class SecSpider(scrapy.Spider):
         #sec_file.close()
         #title = response.xpath('//title/text()').extract()
     
-        #search through either only txt or entire html, line by line... can extract with response.xpath(')   
+          
    
         total_description = response.meta['total_description']
         self.logger.info("Visited %s", response.url)
