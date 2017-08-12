@@ -10,76 +10,102 @@ import time
 from scrapy.crawler import CrawlerProcess
  
 class SecSpider(scrapy.Spider):
-    name = 'secspider'
+    name = 'sec_spider'
     allowed_domains = ['www.sec.gov']
     login_url = 'https://www.sec.gov/edgar/searchedgar/companysearch.html'
     start_urls = [login_url]
+    #set rate of requests to prevent sending too many at once.
     download_delay = 5
     output_dir = '/home/stephen/Desktop/ETNfiles'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)  #creates new directory to store files
     
-    # Fills in CIK field in start url    
+    #creates new directory to store output files if folder is missing
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)  
+    
+    # Fills in CIK field in start url.. build GUI to fill this in
     def parse(self, response):
         CIK_code =  '0001166126'    
         data = {'CIK': CIK_code}
         return [scrapy.FormRequest.from_response(response, formid='fast-search', formdata = data, callback = self.parse_docs)]
 	
-    #counts and extracts document links  
+    #counts and extracts document links from followed link : 
+    #https://www.sec.gov/cgi-bin/browse-edgar?owner=exclude&action=getcompany&Find=Search&CIK=0001166126
     def parse_docs(self,response): 
-        doc_list = []    
-        for newlink in range(2,9):  #42 is max?
-            table_loc = '/html/body/div[4]/div[4]/table'  # location of table in new link
-
-            relative_link = response.xpath(table_loc + '/tr[' + str(newlink) + ']/td[2]/a/@href').extract_first()
+        #Cycle through each document filing in the table... 42 is max?
+        for newlink in range(2,9):  
+            #location of table in new link
+            table1_loc = '/html/body/div[4]/div[4]/table'  
+            #relative link of document location
+            relative_link = response.xpath(table1_loc + '/tr[' + str(newlink) + ']/td[2]/a/@href').extract_first()
             absolute_link = 'https://www.sec.gov' + str(relative_link)
-            filing = str(response.xpath(table_loc + '/tr[' + str(newlink) + ']/td[1]/text()').extract()[0]) 
+            
+            
+            #stores filing name of link
+            filing = str(response.xpath(table1_loc + '/tr[' + str(newlink) + ']/td[1]/text()').extract()[0]) 
+            #stores description of link, accounts for exceptions when there is only one line of description
             try:
-                description = (str(response.xpath(table_loc + '/tr[' + str(newlink) + ']/td[3]/text()').extract()[0]) + 
-                        response.xpath(table_loc + '/tr[' + str(newlink) + ']/td[3]/text()').extract()[1].encode('utf-8'))
+                description = (str(response.xpath(table1_loc + '/tr[' + str(newlink) + ']/td[3]/text()').extract()[0]) + 
+                                   response.xpath(table1_loc + '/tr[' + str(newlink) + ']/td[3]/text()').extract()[1].encode('utf-8'))
             except  UnicodeEncodeError:
                 print("Description Exception")
-            filing_date = str(response.xpath(table_loc + '/tr[' + str(newlink) + ']/td[4]/text()').extract()[0])
-            filenum = (str(response.xpath(table_loc + '/tr[' + str(newlink) + ']/td[5]/a/text()').extract()[0]) +
-                        response.xpath(table_loc + '/tr[' + str(newlink) + ']/td[5]/text()').extract()[0].encode('utf-8'))
+            #stores filing date
+            filing_date = str(response.xpath(table1_loc + '/tr[' + str(newlink) + ']/td[4]/text()').extract()[0])
+            #stores file number
+            filenum = (str(response.xpath(table1_loc + '/tr[' + str(newlink) + ']/td[5]/a/text()').extract()[0]) +
+                           response.xpath(table1_loc + '/tr[' + str(newlink) + ']/td[5]/text()').extract()[0].encode('utf-8'))
+            
+            
+            #makes a list of all the stored information
             doc_info = [absolute_link,filing,description,filing_date,filenum]
+            
+            #requests next link in sequence.
             request = scrapy.Request(absolute_link, callback = self.parse_file)
+            
+            #sends all stored information from this webpage to the next requested page
             request.meta['doc_info'] = doc_info
             yield request
         
-    #downloads text file from doc/
+        
+    #Looks for sub document links and info from each document previously scraped, sends final request
     def parse_file(self,response):
-        table_loc2 = '/html/body/div[4]/div[2]/div[1]/table'
-        doc_count = len(response.xpath(table_loc2 +'/tr').extract())
+        #location of new (final) table
+        table2_loc = '/html/body/div[4]/div[2]/div[1]/table'
+        #counts size of table for for loop
+        doc_count = len(response.xpath(table2_loc +'/tr').extract())
+        #stores all info from previous link into final_info
         final_info = response.meta['doc_info']                
 
         for table_val in range(2,doc_count):
-            doc_space = str(response.xpath(table_loc2 + '/tr[' + str(table_val) + ']/td[3]/a/@href').extract_first())
-            if (doc_space[-3:] == 'txt'or doc_space[-3:] == 'htm'):
-                absolute_link2 = 'https://www.sec.gov' + str(doc_space)
-                sub_description = str(response.xpath(table_loc2 + '/tr[' + str(table_val) + ']/td[2]/text()').extract_first())
-                final_info.append(sub_description)
-                request = scrapy.Request(absolute_link2, callback = self.to_text)
-                request.meta['desc'] = final_info               
+            #gets relative string of final document 
+            final_doc = str(response.xpath(table2_loc + '/tr[' + str(table_val) + ']/td[3]/a/@href').extract_first())
+            #only do something if the file extension is .txt or .htm.
+            if (final_doc[-3:] == 'txt'or final_doc[-3:] == 'htm'):
+                final_absolute_link = 'https://www.sec.gov' + str(final_doc)
+                sub_description = str(response.xpath(table2_loc + '/tr[' + str(table_val) + ']/td[2]/text()').extract_first())
+                #add sub_description to final_info passed from previous link                
+                final_info.append(sub_description)#
+                request = scrapy.Request(final_absolute_link, callback = self.to_text)
+                request.meta['total_description'] = final_info               
                 yield request
             
             
     def to_text(self, response):
         #sec_file = open("newfile.txt","w+")
         #make string object with all document labels..named by date and filing.
-    #may need to sort via date.
+        #may need to sort via date.
         #sec_file.write("add string here")
         #sec_file.close()
         #title = response.xpath('//title/text()').extract()
-        desc = response.meta['desc']
+    
+        #search through either only txt or entire html, line by line... can extract with response.xpath(')   
+   
+        total_description = response.meta['total_description']
         self.logger.info("Visited %s", response.url)
         print (response.url)
-        print (desc)
+        print (total_description)
         print time.time()
             
-            
-  
-
+           
         
 process = CrawlerProcess()
 process.crawl(SecSpider)
